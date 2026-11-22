@@ -205,7 +205,108 @@ export function Chip({
   );
 }
 
+/** The one filled lime button on a screen: the main action (save, add money). */
+export function AccentButton({
+  label,
+  icon,
+  onPress,
+  disabled,
+  style,
+}: {
+  label: string;
+  icon?: IconName;
+  onPress: () => void;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.pill,
+        styles.accent,
+        {
+          backgroundImage: `linear-gradient(180deg, ${colors.accentFrom}, ${colors.accent} 55%, ${colors.accentTo})`,
+          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.55), 0 10px 28px ${colors.accentHaloRing}`,
+          opacity: disabled ? 0.45 : 1,
+        },
+        pressed && styles.pressed,
+        style,
+      ]}>
+      {icon && <Icon name={icon} size={19} color={colors.onAccent} />}
+      <Text style={{ fontFamily: font.bold, fontSize: 14, color: colors.onAccent }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Double-bezel card: a faint outer tray holding the opaque inner panel. */
+export function Card({ children, style, padded = true }: { children: ReactNode; style?: StyleProp<ViewStyle>; padded?: boolean }) {
+  const { colors, isDark } = useTheme();
+  return (
+    <View style={[styles.shell, { backgroundColor: isDark ? 'rgba(255,255,255,0.035)' : 'rgba(11,12,16,0.03)', boxShadow: `inset 0 0 0 1px ${colors.hairline}` }]}>
+      <View
+        style={[
+          styles.core,
+          padded && styles.corePad,
+          {
+            backgroundImage: isDark ? 'linear-gradient(180deg, rgba(22,25,38,0.92), rgba(12,14,22,0.92))' : 'linear-gradient(180deg, #FFFFFF, #F7F8F3)',
+            boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.08)' : '0 8px 24px rgba(11,12,16,0.06)',
+          },
+          style,
+        ]}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+/** Small spaced capitals above a group. */
+export function Eyebrow({ children, style }: { children: string; style?: StyleProp<TextStyle> }) {
+  return (
+    <Txt tone="muted" weight="bold" size={10} style={[styles.eyebrow, style]}>
+      {children.toLocaleUpperCase()}
+    </Txt>
+  );
+}
+
+/** Back button, title and an optional action on the right. */
+export function ScreenHeader({
+  title,
+  onBack,
+  backIcon = 'chevron_left',
+  backLabel,
+  right,
+}: {
+  title: string;
+  onBack: () => void;
+  backIcon?: IconName;
+  backLabel: string;
+  right?: ReactNode;
+}) {
+  return (
+    <View style={styles.header}>
+      <GlassCircle icon={backIcon} label={backLabel} onPress={onBack} />
+      <Txt display="light" size={26} style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit accessibilityRole="header">
+        {title}
+      </Txt>
+      {right}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  accent: { paddingHorizontal: 22 },
+  shell: { padding: 5, borderRadius: 26 },
+  core: { borderRadius: 21, overflow: 'hidden' },
+  corePad: { padding: 16 },
+  eyebrow: { letterSpacing: 2.2 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  headerTitle: { flex: 1, letterSpacing: -1 },
   circle: {
     width: size.touch,
     height: size.touch,

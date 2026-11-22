@@ -6,16 +6,25 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { Sky } from '@/components/Sky';
 import { GlassCircle, GlassPill, Txt } from '@/components/ui';
+import { rulePayments } from '@/db/repos/transactions';
 import { NAV_HEIGHT } from '@/features/nav/SectionNav';
+import { priceIncreases } from '@/features/plan/detect';
+import { goalProgress } from '@/features/plan/goals';
+import { useInsightText } from '@/features/plan/insightText';
+import { buildInsights } from '@/features/plan/insights';
+import { buildUpcoming } from '@/features/plan/upcoming';
 import { dailySeries, groupRows, percentChange, totals } from '@/features/reports/aggregate';
 import { useCategories } from '@/hooks/useCatalog';
 import { useFormat } from '@/hooks/useFormat';
 import { usePeriodRows } from '@/hooks/usePeriodRows';
-import { daysLeftInRange, periodRange, shiftAnchor } from '@/lib/dates';
+import { useBudgets, useCardSummaries, useFixedCosts, useGoals, useRules } from '@/hooks/usePlan';
+import { useQuery } from '@/hooks/useQuery';
+import { dayKey, daysLeftInRange, periodRange, shiftAnchor } from '@/lib/dates';
 import { useSettings } from '@/store/settings';
 import { tint, useTheme } from '@/theme';
 
 import { OrbitView, type OrbitGroup } from './OrbitView';
+import { InsightsDeck, PlanTiles, UpcomingList, type PlanTile } from './PlanSections';
 import { PulseCard } from './PulseCard';
 
 export function HomeScreen() {
@@ -24,17 +33,25 @@ export function HomeScreen() {
   const { width } = useWindowDimensions();
   const { colors } = useTheme();
   const weekStart = useSettings((s) => s.weekStart);
-  const budget = useSettings((s) => s.monthlyBudgetMinor);
   const hidden = useSettings((s) => s.hideAmounts);
   const setSettings = useSettings((s) => s.set);
   const { moneyParts, date } = useFormat();
   const catalog = useCategories();
+  const budgets = useBudgets();
+  const budget = budgets?.total ?? null;
+  const rules = useRules();
+  const cards = useCardSummaries();
+  const goals = useGoals();
+  const fixed = useFixedCosts();
+  const payments = useQuery('rulePayments', rulePayments).data;
+  const insightText = useInsightText(catalog);
 
   const now = new Date();
   const range = periodRange('month', now, weekStart);
   const prevRange = periodRange('month', shiftAnchor('month', now, -1), weekStart);
   const current = usePeriodRows(range);
   const previous = usePeriodRows(prevRange);
+  const history = usePeriodRows({ start: periodRange('month', shiftAnchor('month', now, -3), weekStart).start, end: range.start });
 
   const sum = current ? totals(current.rows) : null;
   const spent = sum?.expense ?? 0;
@@ -44,13 +61,80 @@ export function HomeScreen() {
 
   const groups: OrbitGroup[] =
     current && catalog
-      ? groupRows(current.rows, 'expense', 'category', (id) => catalog.rootOf(id)?.id ?? null)
-          .map((g) => ({ category: catalog.byId.get(g.key), total: g.total, share: g.share }))
-          .filter((g): g is OrbitGroup => !!g.category)
+      ? groupRows(current.rows, 'expense', 'category', (id) => catalog.rootOf(id)?.id ?? null).flatMap((g) => {
+          const category = catalog.byId.get(g.key);
+          const limit = budgets?.byCategory.get(g.key);
+          return category ? [{ category, total: g.total, share: g.share, budgetUse: limit ? g.total / limit : undefined }] : [];
+        })
       : [];
 
   const series = current ? dailySeries(current.rows, 'expense', range).map((p) => p.total) : [];
   const todayIndex = now.getDate() - 1;
+
+  const ruleById = new Map((rules ?? []).map((r) => [r.id, r]));
+  const insights =
+    current && history && catalog && budgets
+      ? buildInsights({
+          now,
+          range,
+          current: current.rows,
+          history: history.rows,
+          rootOf: (id) => catalog.rootOf(id)?.id ?? id,
+          budgets: budgets.lines,
+          priceUps: priceIncreases(payments ?? []).flatMap((p) => {
+            const r = ruleById.get(p.ruleId);
+            return r ? [{ name: r.name, from: p.from, to: p.to, currency: r.currency, pct: p.pct }] : [];
+          }),
+          fixedCosts: fixed && fixed.count > 0 ? { monthly: fixed.monthly, count: fixed.count } : null,
+        }).map(insightText)
+      : [];
+  const upcoming = buildUpcoming(rules ?? [], cards ?? [], now, 14).slice(0, 3);
+  const dueSoon = buildUpcoming(rules ?? [], [], now, 30).length;
+  const nextCard = (cards ?? [])
+    .flatMap((c) => (c.cycle ? [c.cycle.lastDue, c.cycle.nextDue].filter((d) => dayKey(d) >= dayKey(now)).map((d) => ({ c, d })) : []))
+    .sort((a, b) => a.d.getTime() - b.d.getTime())[0];
+  const activeGoals = (goals ?? []).filter((g) => !g.archived);
+  const goalShare = activeGoals.length
+    ? activeGoals.reduce((acc, g) => acc + Math.min(1, goalProgress(g.targetMinor, g.savedMinor, g.targetDate).share), 0) / activeGoals.length
+    : 0;
+  const tiles: PlanTile[] = [
+    {
+      key: 'budgets',
+      icon: 'pie_chart',
+      color: '#34D399',
+      title: t('budgets.title'),
+      status: budget ? t('plan.budgetsUsed', { pct: Math.round((spent / budget) * 100) }) : t('plan.budgetsNone'),
+      href: '/plan/budgets',
+    },
+    {
+      key: 'recurring',
+      icon: 'autorenew',
+      color: '#22D3EE',
+      title: t('recurring.title'),
+      status: rules?.length ? t('plan.recurringDue', { count: dueSoon }) : t('plan.recurringNone'),
+      href: '/plan/recurring',
+    },
+    {
+      key: 'cards',
+      icon: 'credit_card',
+      color: '#A78BFA',
+      title: t('cards.title'),
+      status: nextCard
+        ? t('plan.cardsNext', { card: nextCard.c.account.name, date: date(nextCard.d, { day: 'numeric', month: 'short' }) })
+        : cards?.length
+          ? t('cards.daysMissing')
+          : t('plan.cardsNone'),
+      href: '/plan/cards',
+    },
+    {
+      key: 'goals',
+      icon: 'flag',
+      color: '#FACC15',
+      title: t('goals.title'),
+      status: activeGoals.length ? t('plan.goalsStatus', { count: activeGoals.length, pct: Math.round(goalShare * 100) }) : t('plan.goalsNone'),
+      href: '/plan/goals',
+    },
+  ];
 
   return (
     <View style={styles.flex}>
@@ -126,12 +210,16 @@ export function HomeScreen() {
           spent={spent}
           budget={budget}
           onPressCategory={(id) => router.navigate({ pathname: '/activity', params: { categoryId: id } })}
-          onPressCenter={() => router.push('/settings')}
+          onPressCenter={() => router.push('/plan/budgets')}
         />
 
         <View style={styles.pulse}>
           <PulseCard width={width - 32} values={series} todayIndex={Math.min(todayIndex, Math.max(series.length - 1, 0))} />
         </View>
+
+        <InsightsDeck items={insights} width={width} />
+        <UpcomingList items={upcoming} catalog={catalog} />
+        <PlanTiles tiles={tiles} width={width} />
       </ScrollView>
     </View>
   );

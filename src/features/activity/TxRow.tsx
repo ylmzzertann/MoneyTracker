@@ -42,7 +42,14 @@ export function TxRow({
   const time = date(parseLocalISO(row.occurredAt), { hour: '2-digit', minute: '2-digit' });
   const sub = [category?.label, row.accountName, time].filter(Boolean).join(' · ');
   const amount = money(row.kind === 'income' ? row.amountMinor : -row.amountMinor, row.currency, { showPlus: row.kind === 'income' });
-  const tag = row.splitCount > 1 ? t('transactions.splitCount', { count: row.splitCount }) : null;
+  const tag =
+    row.installmentNo && row.installmentCount
+      ? t('transactions.installmentTag', { no: row.installmentNo, count: row.installmentCount })
+      : row.recurringRuleId
+        ? t('transactions.recurringTag')
+        : row.splitCount > 1
+          ? t('transactions.splitCount', { count: row.splitCount })
+          : null;
 
   return (
     <ReanimatedSwipeable

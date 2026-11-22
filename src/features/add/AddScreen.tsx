@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, useExclusiveGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,10 +11,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { Orb } from '@/components/Orb';
 import { Sky } from '@/components/Sky';
-import { GlassCircle, GlassPill, Segmented, Txt, useGlass } from '@/components/ui';
+import { Chip, GlassCircle, GlassPill, Segmented, Txt, useGlass } from '@/components/ui';
+import { createInstallmentPurchase } from '@/db/repos/installments';
+import { advanceRule, getRule } from '@/db/repos/recurring';
 import { createTransaction, getTransaction, updateTransaction } from '@/db/repos/transactions';
 import type { TransactionInput, TxKind } from '@/db/types';
+import { INSTALLMENT_CHOICES, splitInstallments } from '@/features/plan/installments';
+import { checkBudgetAlerts } from '@/features/plan/usePlanRunner';
 import { useAccounts, useCategories } from '@/hooks/useCatalog';
+import { useFormat } from '@/hooks/useFormat';
 import { useQuery } from '@/hooks/useQuery';
 import { isSameDay, parseLocalISO, startOfDay, toLocalISO } from '@/lib/dates';
 import { bumpData } from '@/store/dataVersion';
@@ -34,8 +39,9 @@ export function AddScreen() {
   const { width, height } = useWindowDimensions();
   const { colors } = useTheme();
   const glass = useGlass();
-  const params = useLocalSearchParams<{ id?: string; categoryId?: string; kind?: TxKind }>();
+  const params = useLocalSearchParams<{ id?: string; categoryId?: string; kind?: TxKind; ruleId?: string; due?: string }>();
   const editId = params.id ?? null;
+  const { money } = useFormat();
   const catalog = useCategories();
   const accounts = useAccounts();
   const lastAccountId = useSettings((s) => s.lastAccountId);
@@ -44,6 +50,10 @@ export function AddScreen() {
   const setSettings = useSettings((s) => s.set);
   const baseCurrency = useSettings((s) => s.baseCurrency);
   const existing = useQuery(`tx:${editId ?? ''}`, (d) => (editId ? getTransaction(d, editId) : Promise.resolve(null))).data;
+  // Paying a recurring bill: the rule fills in the form.
+  const ruleId = editId ? null : (params.ruleId ?? null);
+  const rule = useQuery(`rule:${ruleId ?? ''}`, (d) => (ruleId ? getRule(d, ruleId) : Promise.resolve(null))).data;
+  const due = params.due ?? rule?.nextDue ?? null;
 
   const [kind, setKind] = useState<TxKind>(params.kind === 'income' ? 'income' : 'expense');
   const [amount, setAmount] = useState(0);
@@ -56,6 +66,7 @@ export function AddScreen() {
   const [keypad, setKeypad] = useState(false);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [installments, setInstallments] = useState(1);
 
   // Editing: copy the stored transaction into the form once it has loaded.
   if (existing && catalog && loadedId !== existing.id) {
@@ -70,6 +81,18 @@ export function AddScreen() {
     setDay(startOfDay(parseLocalISO(existing.occurredAt)));
     setMerchant(existing.merchantName ?? '');
   }
+  if (rule && catalog && loadedId !== `rule:${rule.id}`) {
+    const root = catalog.rootOf(rule.categoryId);
+    const dueDay = due ? startOfDay(parseLocalISO(due)) : startOfDay(new Date());
+    setLoadedId(`rule:${rule.id}`);
+    setKind(rule.kind);
+    setAmount(rule.amountMinor);
+    setRootId(root?.id ?? null);
+    setSubId(root && rule.categoryId !== root.id ? rule.categoryId : null);
+    setAccountId(rule.accountId);
+    setDay(dueDay > startOfDay(new Date()) ? startOfDay(new Date()) : dueDay);
+    setMerchant(rule.name);
+  }
 
   const list = catalog?.topLevel(kind) ?? [];
   const wanted = params.categoryId ?? (kind === 'expense' ? lastExpense : lastIncome);
@@ -79,6 +102,8 @@ export function AddScreen() {
   const effSub = rootId ? subId : wantedOk?.parentId ? wantedOk.id : null;
   const account = accounts?.find((a) => a.id === (accountId ?? lastAccountId)) ?? accounts?.[0];
   const currency = account?.currency ?? baseCurrency;
+  const showInstallments = !editId && !rule && kind === 'expense' && account?.type === 'credit_card';
+  const count = showInstallments ? installments : 1;
 
   const shake = useSharedValue(0);
   const lift = useSharedValue(0);
@@ -111,13 +136,18 @@ export function AddScreen() {
       merchantName: merchant.trim() || null,
       note: existing?.note ?? null,
       channel: catalog?.byId.get(categoryId)?.channel ?? existing?.channel ?? null,
-      source: existing?.source ?? 'manual',
+      source: rule ? 'recurring' : (existing?.source ?? 'manual'),
+      externalId: rule && due ? `rec:${rule.id}:${due}` : undefined,
       splits: [{ categoryId, amountMinor: amount }],
     };
     setSaving(true);
     try {
       if (editId) await updateTransaction(db, editId, input);
-      else await createTransaction(db, input);
+      else if (count > 1) await createInstallmentPurchase(db, input, count);
+      else if (rule) {
+        await createTransaction(db, input, { recurringRuleId: rule.id });
+        await advanceRule(db, rule, due ?? rule.nextDue);
+      } else await createTransaction(db, input);
     } catch {
       setSaving(false);
       lift.set(withSpring(0));
@@ -130,8 +160,9 @@ export function AddScreen() {
         : { lastAccountId: account.id, lastIncomeCategoryId: categoryId },
     );
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showToast({ message: editId ? t('add.updated') : t('add.saved') });
+    showToast({ message: editId ? t('add.updated') : count > 1 ? t('add.savedInstallments', { count }) : t('add.saved') });
     router.back();
+    void checkBudgetAlerts(db).catch(() => {});
   };
 
   const flick = usePanGesture({
@@ -155,7 +186,7 @@ export function AddScreen() {
   const tapSave = useTapGesture({ maxDistance: 10, runOnJS: true, onActivate: () => void save() });
   const saveGesture = useExclusiveGestures(flick, tapSave);
 
-  const dialSize = Math.round(Math.min(width - 60, 300, Math.max(220, height - 540)));
+  const dialSize = Math.round(Math.min(width - 60, 300, Math.max(220, height - 540 - (showInstallments ? 56 : 0))));
   const cycleAccount = () => {
     if (!accounts || accounts.length === 0 || !account) return;
     const i = accounts.findIndex((a) => a.id === account.id);
@@ -238,6 +269,29 @@ export function AddScreen() {
           )}
         </View>
 
+        {showInstallments && (
+          <View style={styles.installments}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.installmentChips}>
+              {INSTALLMENT_CHOICES.map((n) => (
+                <Chip
+                  key={n}
+                  label={n === 1 ? t('add.singlePayment') : t('add.installmentChip', { count: n })}
+                  selected={installments === n}
+                  onPress={() => {
+                    void Haptics.selectionAsync();
+                    setInstallments(n);
+                  }}
+                />
+              ))}
+            </ScrollView>
+            {installments > 1 && amount > 0 && (
+              <Txt tone="muted" size={11} style={styles.installmentHint}>
+                {t('add.installmentHint', { count: installments, amount: money(splitInstallments(amount, installments)[installments - 1], currency) })}
+              </Txt>
+            )}
+          </View>
+        )}
+
         <View style={styles.saveArea}>
           <Icon name="keyboard_double_arrow_up" size={22} color={colors.accent} style={styles.arrows} />
           <GestureDetector gesture={saveGesture}>
@@ -269,6 +323,9 @@ const styles = StyleSheet.create({
   merchantInput: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 40, borderRadius: 999, paddingHorizontal: 14, minWidth: 180 },
   input: { flex: 1, fontSize: 13, paddingVertical: 0 },
   saveArea: { alignItems: 'center', gap: 6, marginTop: 14 },
+  installments: { marginTop: 10, gap: 4 },
+  installmentChips: { gap: 8, paddingHorizontal: 16 },
+  installmentHint: { textAlign: 'center' },
   arrows: { opacity: 0.7 },
   saveHint: { letterSpacing: 0.4 },
 });

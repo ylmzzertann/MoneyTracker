@@ -167,7 +167,7 @@ export function OrbitView({
       {placed.map((p) => {
         const tone = categoryTone(p.category.color);
         const over = p.budgetUse !== undefined && p.budgetUse > 1;
-        const near = p.budgetUse !== undefined && p.budgetUse >= 0.85 && !over;
+        const near = p.budgetUse !== undefined && p.budgetUse >= 0.8 && !over;
         return (
           <View key={p.category.id} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
             <Pressable

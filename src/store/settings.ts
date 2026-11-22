@@ -21,8 +21,14 @@ export type SettingsState = {
   lastExpenseCategoryId: string | null;
   lastIncomeCategoryId: string | null;
   fabHintSeen: boolean;
-  /** Monthly spending budget in the main currency's minor units; null = not set. */
+  /** Phase-1 monthly budget; moved into the budgets table on first launch of phase 3. */
   monthlyBudgetMinor: number | null;
+  /** Scheduled reminders for bills, subscriptions and card due dates. */
+  notifyBills: boolean;
+  /** In-app warning when a budget reaches 80% / 100%. */
+  notifyBudgets: boolean;
+  /** Hour of the day reminders arrive. */
+  reminderHour: number;
 };
 
 type SettingsActions = {
@@ -43,10 +49,13 @@ export const DEFAULT_SETTINGS: SettingsState = {
   lastIncomeCategoryId: null,
   fabHintSeen: false,
   monthlyBudgetMinor: null,
+  notifyBills: false,
+  notifyBudgets: true,
+  reminderHour: 9,
 };
 
 /** Synchronous SQLite-backed storage so settings are ready on the very first render. */
-const syncStorage: StateStorage = {
+export const syncStorage: StateStorage = {
   getItem: (name) => Storage.getItemSync(name),
   setItem: (name, value) => Storage.setItemSync(name, value),
   removeItem: (name) => {

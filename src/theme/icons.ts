@@ -84,6 +84,20 @@ export const ICONS = {
   palette: 'paintpalette',
   archive: 'archivebox',
   unarchive: 'tray.and.arrow.up',
+  // Planning
+  notifications: 'bell',
+  autorenew: 'arrow.triangle.2.circlepath',
+  flag: 'flag',
+  lightbulb: 'lightbulb',
+  warning: 'exclamationmark.triangle',
+  schedule: 'clock',
+  skip_next: 'forward.end',
+  auto_awesome: 'sparkles',
+  arrow_forward: 'arrow.right',
+  remove: 'minus',
+  add_circle: 'plus.circle',
+  event_upcoming: 'calendar.badge.clock',
+  pie_chart: 'chart.pie.fill',
 } as const satisfies Partial<Record<AndroidSymbol, SFSymbol>>;
 
 export type IconName = keyof typeof ICONS;

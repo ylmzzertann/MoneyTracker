@@ -81,6 +81,9 @@ export type TransactionListRow = {
   source: TxSource;
   categoryId: string;
   splitCount: number;
+  recurringRuleId: string | null;
+  installmentNo: number | null;
+  installmentCount: number | null;
 };
 
 /** One row per split, used by reports and charts. */
@@ -104,3 +107,72 @@ export type TransactionFilter = {
   accountId?: string;
   search?: string;
 };
+
+/** Links a transaction to the plan that produced it (recurring rule or installment purchase). */
+export type TransactionLinks = {
+  recurringRuleId?: string | null;
+  installmentPlanId?: string | null;
+  installmentNo?: number | null;
+};
+
+export type Frequency = 'week' | 'month' | 'year';
+
+/** A monthly spending limit; `categoryId` null is the limit for the whole month. */
+export type Budget = { id: string; categoryId: string | null; amountMinor: number; currency: string };
+
+export type RecurringRule = {
+  id: string;
+  kind: TxKind;
+  name: string;
+  accountId: string;
+  categoryId: string;
+  amountMinor: number;
+  currency: string;
+  frequency: Frequency;
+  interval: number;
+  /** Day of month the rule was set to, so the 31st comes back after a short month. */
+  anchorDay: number | null;
+  /** Next date it is due, "YYYY-MM-DD". */
+  nextDue: string;
+  /** Add the transaction automatically on the due date instead of asking. */
+  autoPost: boolean;
+  /** Remind this many days before; null = no reminder. */
+  remindDays: number | null;
+  isSubscription: boolean;
+  active: boolean;
+};
+
+export type RecurringRuleInput = Omit<RecurringRule, 'id'>;
+
+export type InstallmentPlan = {
+  id: string;
+  accountId: string;
+  categoryId: string;
+  merchantName: string | null;
+  totalMinor: number;
+  currency: string;
+  count: number;
+  firstDate: string;
+  /** Installments dated today or earlier. */
+  paidCount: number;
+  /** Amount of the installments still ahead. */
+  remainingMinor: number;
+  nextDate: string | null;
+};
+
+export type Goal = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  targetMinor: number;
+  currency: string;
+  /** "YYYY-MM-DD" or null for no deadline. */
+  targetDate: string | null;
+  archived: boolean;
+  savedMinor: number;
+};
+
+export type GoalInput = Pick<Goal, 'name' | 'icon' | 'color' | 'targetMinor' | 'currency' | 'targetDate'>;
+
+export type GoalContribution = { id: string; goalId: string; amountMinor: number; occurredAt: string; note: string | null };

@@ -10,6 +10,7 @@ import type {
   Transaction,
   TransactionFilter,
   TransactionInput,
+  TransactionLinks,
   TransactionListRow,
   TxKind,
   TxSource,
@@ -88,32 +89,51 @@ function primaryCategory(input: TransactionInput): string {
   return [...input.splits].sort((a, b) => b.amountMinor - a.amountMinor)[0].categoryId;
 }
 
-export async function createTransaction(db: SQLiteDatabase, input: TransactionInput): Promise<string> {
+/** Inserts the transaction rows; call inside a database transaction. */
+export async function insertTransaction(
+  db: SQLiteDatabase,
+  input: TransactionInput,
+  links: TransactionLinks = {},
+): Promise<string> {
   validate(input);
   const id = newId();
   const now = nowUtc();
+  const merchantId = await upsertMerchant(db, input.merchantName, primaryCategory(input), input.channel ?? null);
+  await db.runAsync(
+    `INSERT INTO transactions (id, household_id, account_id, kind, amount_minor, currency, occurred_at, merchant_id,
+       note, channel, source, external_id, recurring_rule_id, installment_plan_id, installment_no, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    LOCAL_HOUSEHOLD,
+    input.accountId,
+    input.kind,
+    input.amountMinor,
+    input.currency,
+    input.occurredAt,
+    merchantId,
+    input.note?.trim() || null,
+    input.channel ?? null,
+    input.source ?? 'manual',
+    input.externalId ?? null,
+    links.recurringRuleId ?? null,
+    links.installmentPlanId ?? null,
+    links.installmentNo ?? null,
+    now,
+    now,
+  );
+  await writeSplits(db, id, input, now);
+  return id;
+}
+
+export async function createTransaction(
+  db: SQLiteDatabase,
+  input: TransactionInput,
+  links: TransactionLinks = {},
+): Promise<string> {
+  validate(input);
+  let id = '';
   await db.withTransactionAsync(async () => {
-    const merchantId = await upsertMerchant(db, input.merchantName, primaryCategory(input), input.channel ?? null);
-    await db.runAsync(
-      `INSERT INTO transactions (id, household_id, account_id, kind, amount_minor, currency, occurred_at, merchant_id,
-         note, channel, source, external_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id,
-      LOCAL_HOUSEHOLD,
-      input.accountId,
-      input.kind,
-      input.amountMinor,
-      input.currency,
-      input.occurredAt,
-      merchantId,
-      input.note?.trim() || null,
-      input.channel ?? null,
-      input.source ?? 'manual',
-      input.externalId ?? null,
-      now,
-      now,
-    );
-    await writeSplits(db, id, input, now);
+    id = await insertTransaction(db, input, links);
   });
   return id;
 }
@@ -212,6 +232,9 @@ type ListRow = {
   source: TxSource;
   category_id: string | null;
   split_count: number;
+  recurring_rule_id: string | null;
+  installment_no: number | null;
+  installment_count: number | null;
 };
 
 export async function listTransactions(db: SQLiteDatabase, f: TransactionFilter): Promise<TransactionListRow[]> {
@@ -244,8 +267,10 @@ export async function listTransactions(db: SQLiteDatabase, f: TransactionFilter)
                WHERE s.transaction_id = t.id AND s.deleted_at IS NULL
                ORDER BY s.amount_minor DESC LIMIT 1) AS category_id,
             (SELECT COUNT(*) FROM transaction_splits s
-               WHERE s.transaction_id = t.id AND s.deleted_at IS NULL) AS split_count
+               WHERE s.transaction_id = t.id AND s.deleted_at IS NULL) AS split_count,
+            t.recurring_rule_id, t.installment_no, p.count AS installment_count
      FROM transactions t
+     LEFT JOIN installment_plans p ON p.id = t.installment_plan_id
      LEFT JOIN merchants m ON m.id = t.merchant_id
      LEFT JOIN accounts a ON a.id = t.account_id
      WHERE ${where.join(' AND ')}
@@ -266,6 +291,9 @@ export async function listTransactions(db: SQLiteDatabase, f: TransactionFilter)
     source: r.source,
     categoryId: r.category_id ?? 'sys:other',
     splitCount: r.split_count,
+    recurringRuleId: r.recurring_rule_id,
+    installmentNo: r.installment_no,
+    installmentCount: r.installment_count,
   }));
 }
 
@@ -360,4 +388,92 @@ export async function allTransactionsForExport(db: SQLiteDatabase, start: string
     start,
     end,
   );
+}
+
+/** Net spending on one account in [start, end): expenses minus refunds/income. */
+export async function accountNetSpend(db: SQLiteDatabase, accountId: string, start: string, end: string): Promise<number> {
+  const row = await db.getFirstAsync<{ total: number | null }>(
+    `SELECT SUM(CASE WHEN kind = 'expense' THEN amount_minor ELSE -amount_minor END) AS total
+     FROM transactions WHERE deleted_at IS NULL AND account_id = ? AND occurred_at >= ? AND occurred_at < ?`,
+    accountId,
+    start,
+    end,
+  );
+  return row?.total ?? 0;
+}
+
+/** Installments booked on an account from `start` on, totalled per month ("YYYY-MM"). */
+export async function futureInstallmentsByMonth(
+  db: SQLiteDatabase,
+  accountId: string,
+  start: string,
+): Promise<{ month: string; total: number }[]> {
+  return db.getAllAsync<{ month: string; total: number }>(
+    `SELECT substr(occurred_at, 1, 7) AS month, SUM(amount_minor) AS total
+     FROM transactions
+     WHERE deleted_at IS NULL AND account_id = ? AND installment_plan_id IS NOT NULL AND occurred_at >= ?
+     GROUP BY month ORDER BY month`,
+    accountId,
+    start,
+  );
+}
+
+/** Amounts posted by each recurring rule, newest first (for price-change insights). */
+export async function rulePayments(db: SQLiteDatabase): Promise<{ ruleId: string; amountMinor: number; occurredAt: string }[]> {
+  const rows = await db.getAllAsync<{ recurring_rule_id: string; amount_minor: number; occurred_at: string }>(
+    `SELECT recurring_rule_id, amount_minor, occurred_at FROM transactions
+     WHERE deleted_at IS NULL AND recurring_rule_id IS NOT NULL ORDER BY occurred_at DESC`,
+  );
+  return rows.map((r) => ({ ruleId: r.recurring_rule_id, amountMinor: r.amount_minor, occurredAt: r.occurred_at }));
+}
+
+export type HistoryTx = {
+  id: string;
+  kind: TxKind;
+  merchantName: string | null;
+  amountMinor: number;
+  currency: string;
+  occurredAt: string;
+  accountId: string;
+  categoryId: string;
+  recurringRuleId: string | null;
+  installmentPlanId: string | null;
+};
+
+/** Transactions in [start, end) with their main category, for recurring-payment detection. */
+export async function historyTransactions(db: SQLiteDatabase, start: string, end: string): Promise<HistoryTx[]> {
+  const rows = await db.getAllAsync<{
+    id: string;
+    kind: TxKind;
+    merchant_name: string | null;
+    amount_minor: number;
+    currency: string;
+    occurred_at: string;
+    account_id: string;
+    category_id: string | null;
+    recurring_rule_id: string | null;
+    installment_plan_id: string | null;
+  }>(
+    `SELECT t.id, t.kind, m.name AS merchant_name, t.amount_minor, t.currency, t.occurred_at, t.account_id,
+            (SELECT s.category_id FROM transaction_splits s WHERE s.transaction_id = t.id AND s.deleted_at IS NULL
+               ORDER BY s.amount_minor DESC LIMIT 1) AS category_id,
+            t.recurring_rule_id, t.installment_plan_id
+     FROM transactions t LEFT JOIN merchants m ON m.id = t.merchant_id
+     WHERE t.deleted_at IS NULL AND t.occurred_at >= ? AND t.occurred_at < ?
+     ORDER BY t.occurred_at`,
+    start,
+    end,
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    merchantName: r.merchant_name,
+    amountMinor: r.amount_minor,
+    currency: r.currency,
+    occurredAt: r.occurred_at,
+    accountId: r.account_id,
+    categoryId: r.category_id ?? 'sys:other',
+    recurringRuleId: r.recurring_rule_id,
+    installmentPlanId: r.installment_plan_id,
+  }));
 }

@@ -4,21 +4,21 @@ import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Sky } from '@/components/Sky';
-import { GlassCircle, GlassPill, Segmented, Txt } from '@/components/ui';
+import { GlassCircle, Segmented, Txt } from '@/components/ui';
 import { loadRates } from '@/db/repos/fx';
 import { refreshRates } from '@/features/app/useFxRefresh';
 import { exportCsv } from '@/features/export/exportCsv';
+import { requestReminderPermission } from '@/features/plan/notifications';
 import { useCategories } from '@/hooks/useCatalog';
 import { useFormat } from '@/hooks/useFormat';
+import { useBudgets } from '@/hooks/usePlan';
 import { useQuery } from '@/hooks/useQuery';
-import { fromMinor, toMinor } from '@/lib/money';
 import { useSettings } from '@/store/settings';
 import { showToast } from '@/store/toast';
-import { font, useTheme } from '@/theme';
 
 import { ChipChoice, CURRENCY_OPTIONS, Row, Section, SwitchRow } from './parts';
 
@@ -26,17 +26,18 @@ export function SettingsScreen() {
   const { t } = useTranslation();
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
   const { money, locale, date } = useFormat();
   const s = useSettings();
   const catalog = useCategories();
   const fx = useQuery('fx', loadRates).data;
-  const [budgetText, setBudgetText] = useState(s.monthlyBudgetMinor ? String(Math.round(fromMinor(s.monthlyBudgetMinor, s.baseCurrency))) : '');
+  const budgets = useBudgets();
   const [refreshing, setRefreshing] = useState(false);
 
-  const saveBudget = () => {
-    const major = Number(budgetText.replace(/\D/g, ''));
-    s.set({ monthlyBudgetMinor: major > 0 ? toMinor(major, s.baseCurrency) : null });
+  const toggleReminders = async (on: boolean) => {
+    if (!on) return s.set({ notifyBills: false });
+    const granted = await requestReminderPermission().catch(() => false);
+    if (granted) s.set({ notifyBills: true });
+    else showToast({ message: t('notifications.denied') });
   };
 
   const toggleBiometric = async (on: boolean) => {
@@ -133,38 +134,30 @@ export function SettingsScreen() {
           </Row>
         </Section>
 
-        <Section title={t('settings.monthlyBudget')}>
-          <Row label={t('settings.monthlyBudget')} value={s.monthlyBudgetMinor ? money(s.monthlyBudgetMinor, undefined, { trimZeroCents: true }) : t('settings.budgetNone')}>
-            <View style={styles.budgetRow}>
-              <TextInput
-                value={budgetText}
-                onChangeText={(v) => setBudgetText(v.replace(/\D/g, ''))}
-                onEndEditing={saveBudget}
-                onSubmitEditing={saveBudget}
-                keyboardType="number-pad"
-                returnKeyType="done"
-                placeholder="25000"
-                placeholderTextColor={colors.textFaint}
-                accessibilityLabel={t('settings.monthlyBudget')}
-                style={[styles.input, { color: colors.text, fontFamily: font.displayRegular, boxShadow: `inset 0 0 0 1px ${colors.hairline}` }]}
+        <Section title={t('plan.title')}>
+          <Row
+            icon="pie_chart"
+            label={t('budgets.title')}
+            value={budgets?.total ? money(budgets.total, undefined, { trimZeroCents: true }) : t('settings.budgetNone')}
+            onPress={() => router.push('/plan/budgets')}
+          />
+          <Row icon="autorenew" label={t('recurring.title')} onPress={() => router.push('/plan/recurring')} />
+          <Row icon="credit_card" label={t('cards.title')} onPress={() => router.push('/plan/cards')} />
+          <Row icon="flag" label={t('goals.title')} onPress={() => router.push('/plan/goals')} />
+        </Section>
+
+        <Section title={t('notifications.title')}>
+          <SwitchRow icon="notifications" label={t('notifications.reminders')} value={s.notifyBills} onChange={(v) => void toggleReminders(v)} hint={t('notifications.remindersHint')} />
+          {s.notifyBills && (
+            <Row label={t('notifications.time')}>
+              <ChipChoice
+                value={String(s.reminderHour)}
+                onChange={(v) => s.set({ reminderHour: Number(v) })}
+                options={['8', '9', '12', '18', '20'].map((h) => ({ value: h, label: `${h.padStart(2, '0')}:00` }))}
               />
-              <Txt tone="muted" size={13}>
-                {s.baseCurrency}
-              </Txt>
-              {s.monthlyBudgetMinor ? (
-                <GlassPill
-                  label={t('settings.budgetClear')}
-                  onPress={() => {
-                    setBudgetText('');
-                    s.set({ monthlyBudgetMinor: null });
-                  }}
-                />
-              ) : null}
-            </View>
-            <Txt tone="muted" size={12}>
-              {t('settings.budgetHint')}
-            </Txt>
-          </Row>
+            </Row>
+          )}
+          <SwitchRow icon="pie_chart" label={t('notifications.budgets')} value={s.notifyBudgets} onChange={(notifyBudgets) => s.set({ notifyBudgets })} hint={t('notifications.budgetsHint')} />
         </Section>
 
         <Section title={t('settings.security')}>
@@ -204,8 +197,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   title: { letterSpacing: -1 },
-  budgetRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  input: { flex: 1, height: 44, borderRadius: 14, paddingHorizontal: 14, fontSize: 16 },
   soon: { padding: 16 },
   soonText: { lineHeight: 20 },
   version: { textAlign: 'center', marginTop: 28 },

@@ -18,11 +18,14 @@ import { ToastHost } from '@/components/ToastHost';
 import { initializeDatabase } from '@/db/migrations';
 import { LockGate } from '@/features/app/LockGate';
 import { useFxRefresh } from '@/features/app/useFxRefresh';
+import { configureNotifications } from '@/features/plan/notifications';
+import { usePlanRunner } from '@/features/plan/usePlanRunner';
 import { initI18n, resolveLanguage } from '@/i18n';
 import { useSettings } from '@/store/settings';
 import { useTheme } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync();
+configureNotifications();
 
 export default function RootLayout() {
   const language = useSettings((s) => s.language);
@@ -64,6 +67,7 @@ function AppShell() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   useFxRefresh();
+  usePlanRunner();
 
   return (
     <>
@@ -72,6 +76,7 @@ function AppShell() {
           <Stack.Screen name="(sections)" />
           <Stack.Screen name="add" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="settings" />
+          <Stack.Screen name="plan" />
         </Stack.Protected>
         <Stack.Protected guard={!onboarded}>
           <Stack.Screen name="onboarding" />

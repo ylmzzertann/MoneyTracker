@@ -11,6 +11,7 @@ import { GlassCircle, GlassPill, Txt } from '@/components/ui';
 import { ACCOUNT_TYPE_ICONS, CATEGORY_COLORS, type AccountType } from '@/db/defaults';
 import { accountBalances, createAccount, setAccountArchived, updateAccount } from '@/db/repos/accounts';
 import type { AccountInput } from '@/db/types';
+import { AmountSheet } from '@/features/plan/AmountSheet';
 import { useAccounts, type AccountView } from '@/hooks/useCatalog';
 import { useFormat } from '@/hooks/useFormat';
 import { useQuery } from '@/hooks/useQuery';
@@ -22,6 +23,7 @@ import { font, useTheme } from '@/theme';
 import { ChipChoice, ColorChoice, CURRENCY_OPTIONS, Section } from './parts';
 
 const TYPES: AccountType[] = ['cash', 'bank', 'credit_card', 'wallet', 'savings'];
+const DAYS = Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
 
 export function AccountsScreen() {
   const { t } = useTranslation();
@@ -33,6 +35,7 @@ export function AccountsScreen() {
   const accounts = useAccounts(true) ?? [];
   const balances = useQuery('balances', accountBalances).data ?? {};
   const [editing, setEditing] = useState<{ id: string | null; draft: AccountInput } | null>(null);
+  const [limitSheet, setLimitSheet] = useState(false);
 
   const open = (a: AccountView | null) =>
     setEditing({
@@ -93,6 +96,27 @@ export function AccountsScreen() {
                 {t('accounts.currency')}
               </Txt>
               <ChipChoice value={draft.currency} onChange={(currency) => patch({ currency })} options={CURRENCY_OPTIONS} />
+              {draft.type === 'credit_card' && (
+                <>
+                  <Txt tone="soft" weight="bold" size={12}>
+                    {t('accounts.statementDay')}
+                  </Txt>
+                  <ChipChoice value={draft.statementDay ? String(draft.statementDay) : ''} onChange={(v) => patch({ statementDay: Number(v) })} options={DAYS} />
+                  <Txt tone="soft" weight="bold" size={12}>
+                    {t('accounts.dueDay')}
+                  </Txt>
+                  <ChipChoice value={draft.dueDay ? String(draft.dueDay) : ''} onChange={(v) => patch({ dueDay: Number(v) })} options={DAYS} />
+                  <Txt tone="muted" size={11.5}>
+                    {t('accounts.cardDaysHint')}
+                  </Txt>
+                  <GlassPill
+                    icon="credit_card"
+                    label={draft.creditLimitMinor ? t('accounts.limitValue', { amount: money(draft.creditLimitMinor, draft.currency, { trimZeroCents: true }) }) : t('accounts.addLimit')}
+                    onPress={() => setLimitSheet(true)}
+                    style={styles.limit}
+                  />
+                </>
+              )}
               <Txt tone="soft" weight="bold" size={12}>
                 {t('accounts.color')}
               </Txt>
@@ -148,6 +172,29 @@ export function AccountsScreen() {
           ))}
         </Section>
       </ScrollView>
+
+      {limitSheet && draft && (
+        <AmountSheet
+          title={t('accounts.limit')}
+          subtitle={draft.name || undefined}
+          currency={draft.currency}
+          initial={draft.creditLimitMinor ?? 0}
+          clearLabel={t('accounts.removeLimit')}
+          onClear={
+            draft.creditLimitMinor
+              ? () => {
+                  patch({ creditLimitMinor: null });
+                  setLimitSheet(false);
+                }
+              : undefined
+          }
+          onSubmit={(v) => {
+            patch({ creditLimitMinor: v });
+            setLimitSheet(false);
+          }}
+          onClose={() => setLimitSheet(false)}
+        />
+      )}
     </View>
   );
 }
@@ -160,6 +207,7 @@ const styles = StyleSheet.create({
   editor: { padding: 16, gap: 12 },
   input: { height: 46, borderRadius: 14, paddingHorizontal: 14, fontSize: 15 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 6 },
+  limit: { alignSelf: 'flex-start' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   balance: { alignItems: 'flex-end', gap: 2 },
 });

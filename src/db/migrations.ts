@@ -107,6 +107,97 @@ const MIGRATIONS: string[] = [
     fetched_at TEXT NOT NULL
   );
   `,
+  // v2 — planning: budgets, recurring payments, installments, goals
+  `
+  ALTER TABLE transactions ADD COLUMN recurring_rule_id TEXT;
+  ALTER TABLE transactions ADD COLUMN installment_plan_id TEXT;
+  ALTER TABLE transactions ADD COLUMN installment_no INTEGER;
+  CREATE INDEX transactions_rule ON transactions (recurring_rule_id);
+  CREATE INDEX transactions_plan ON transactions (installment_plan_id);
+
+  CREATE TABLE budgets (
+    id TEXT PRIMARY KEY NOT NULL,
+    household_id TEXT NOT NULL,
+    category_id TEXT,
+    amount_minor INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX budgets_category ON budgets (household_id, category_id);
+
+  CREATE TABLE recurring_rules (
+    id TEXT PRIMARY KEY NOT NULL,
+    household_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    category_id TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    frequency TEXT NOT NULL,
+    interval_count INTEGER NOT NULL DEFAULT 1,
+    anchor_day INTEGER,
+    next_due TEXT NOT NULL,
+    auto_post INTEGER NOT NULL DEFAULT 0,
+    remind_days INTEGER,
+    is_subscription INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+
+  CREATE TABLE installment_plans (
+    id TEXT PRIMARY KEY NOT NULL,
+    household_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    category_id TEXT NOT NULL,
+    merchant_name TEXT,
+    total_minor INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    count INTEGER NOT NULL,
+    first_date TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+
+  CREATE TABLE goals (
+    id TEXT PRIMARY KEY NOT NULL,
+    household_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    color TEXT NOT NULL,
+    target_minor INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    target_date TEXT,
+    archived INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+
+  CREATE TABLE goal_contributions (
+    id TEXT PRIMARY KEY NOT NULL,
+    household_id TEXT NOT NULL,
+    goal_id TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL,
+    occurred_at TEXT NOT NULL,
+    note TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX goal_contributions_goal ON goal_contributions (goal_id);
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
