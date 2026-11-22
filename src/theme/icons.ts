@@ -98,6 +98,14 @@ export const ICONS = {
   add_circle: 'plus.circle',
   event_upcoming: 'calendar.badge.clock',
   pie_chart: 'chart.pie.fill',
+  // Import
+  download: 'square.and.arrow.down',
+  sms: 'message',
+  upload_file: 'doc.badge.plus',
+  content_paste: 'doc.on.clipboard',
+  swap_horiz: 'arrow.left.arrow.right',
+  undo: 'arrow.uturn.backward',
+  done_all: 'checkmark.circle.fill',
 } as const satisfies Partial<Record<AndroidSymbol, SFSymbol>>;
 
 export type IconName = keyof typeof ICONS;

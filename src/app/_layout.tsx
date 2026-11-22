@@ -77,6 +77,7 @@ function AppShell() {
           <Stack.Screen name="add" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="settings" />
           <Stack.Screen name="plan" />
+          <Stack.Screen name="import" />
         </Stack.Protected>
         <Stack.Protected guard={!onboarded}>
           <Stack.Screen name="onboarding" />

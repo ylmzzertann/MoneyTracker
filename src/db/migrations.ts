@@ -198,6 +198,16 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX goal_contributions_goal ON goal_contributions (goal_id);
   `,
+  // v3 — import: what the app learned from earlier imports ("card 1234 is this account")
+  `
+  CREATE TABLE import_hints (
+    household_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (household_id, key)
+  );
+  `,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

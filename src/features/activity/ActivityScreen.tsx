@@ -131,14 +131,17 @@ export function ActivityScreen() {
             <GlassCircle icon="chevron_right" label={t('transactions.nextMonth')} onPress={() => setAnchor(shiftAnchor('month', anchor, 1))} />
           )}
         </View>
-        <GlassCircle
-          icon={searching ? 'close' : 'search'}
-          label={searching ? t('transactions.closeSearch') : t('transactions.search')}
-          onPress={() => {
-            setSearching(!searching);
-            setSearch('');
-          }}
-        />
+        <View style={styles.monthRow}>
+          <GlassCircle icon="download" label={t('import.title')} onPress={() => router.push('/import')} />
+          <GlassCircle
+            icon={searching ? 'close' : 'search'}
+            label={searching ? t('transactions.closeSearch') : t('transactions.search')}
+            onPress={() => {
+              setSearching(!searching);
+              setSearch('');
+            }}
+          />
+        </View>
       </View>
 
       <View style={styles.titleBlock}>

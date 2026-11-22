@@ -168,6 +168,7 @@ export function SettingsScreen() {
         <Section title={t('settings.data')}>
           <Row icon="credit_card" label={t('settings.accounts')} onPress={() => router.push('/settings/accounts')} />
           <Row icon="category" label={t('settings.categories')} onPress={() => router.push('/settings/categories')} />
+          <Row icon="download" label={t('settings.import')} onPress={() => router.push('/import')} />
           <Row icon="ios_share" label={t('settings.exportAll')} onPress={() => void exportAll()} />
           <Row
             icon="currency_exchange"

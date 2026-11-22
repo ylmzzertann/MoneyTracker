@@ -157,6 +157,7 @@ export function HomeScreen() {
               label={hidden ? t('home.showAmounts') : t('home.hideAmounts')}
               onPress={() => setSettings({ hideAmounts: !hidden })}
             />
+            <GlassCircle icon="download" label={t('import.title')} onPress={() => router.push('/import')} />
             <GlassCircle icon="settings" label={t('settings.title')} onPress={() => router.push('/settings')} />
           </View>
         </View>
