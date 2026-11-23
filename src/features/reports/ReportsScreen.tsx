@@ -30,7 +30,7 @@ export function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { colors, isDark } = useTheme();
-  const { money, moneyParts, locale } = useFormat();
+  const { money, moneyParts, locale, percent } = useFormat();
   const weekStart = useSettings((s) => s.weekStart);
   const catalog = useCategories();
   const accounts = useAccounts(true);
@@ -255,7 +255,7 @@ export function ReportsScreen() {
                       {money(it.total, undefined, { trimZeroCents: true })}
                     </Txt>
                     <Txt tone="muted" size={12} style={styles.share}>
-                      %{Math.round(it.share * 100)}
+                      {percent(it.share)}
                     </Txt>
                   </Pressable>
                 );
@@ -265,19 +265,19 @@ export function ReportsScreen() {
         ) : (
           <View style={[styles.table, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.7)', boxShadow: `inset 0 0 0 1px ${colors.hairline}` }]}>
             <View style={[styles.tr, styles.th, { boxShadow: `inset 0 -1px 0 ${colors.hairline}` }]}>
-              <Txt tone="muted" weight="bold" size={10} style={[styles.cName, styles.caps]}>
+              <Txt tone="muted" weight="bold" size={10} numberOfLines={1} style={[styles.cName, styles.caps]}>
                 {groupLabel.toLocaleUpperCase()}
               </Txt>
-              <Txt tone="muted" weight="bold" size={10} style={[styles.cNum, styles.caps]}>
+              <Txt tone="muted" weight="bold" size={10} numberOfLines={1} style={[styles.cNum, styles.caps]}>
                 {t('reports.colCount')}
               </Txt>
-              <Txt tone="muted" weight="bold" size={10} style={[styles.cAmt, styles.caps]}>
+              <Txt tone="muted" weight="bold" size={10} numberOfLines={1} style={[styles.cAmt, styles.caps]}>
                 {t('reports.colAmount')}
               </Txt>
-              <Txt tone="muted" weight="bold" size={10} style={[styles.cNum, styles.caps]}>
+              <Txt tone="muted" weight="bold" size={10} numberOfLines={1} style={[styles.cNum, styles.caps]}>
                 {t('reports.colShare')}
               </Txt>
-              <Txt tone="muted" weight="bold" size={10} style={[styles.cDiff, styles.caps]}>
+              <Txt tone="muted" weight="bold" size={10} numberOfLines={1} style={[styles.cDiff, styles.caps]}>
                 {t('reports.colDiff')}
               </Txt>
             </View>
@@ -298,13 +298,13 @@ export function ReportsScreen() {
                     {money(it.total, undefined, { trimZeroCents: true })}
                   </Txt>
                   <Txt tone="muted" size={13} style={styles.cNum}>
-                    %{Math.round(it.share * 100)}
+                    {percent(it.share)}
                   </Txt>
                   <Txt
                     weight="bold"
                     size={12.5}
                     style={[styles.cDiff, { color: it.delta === null ? colors.textMuted : it.delta <= 0 ? colors.income : isDark ? '#FDA4AF' : colors.danger }]}>
-                    {it.delta === null ? '–' : `${it.delta > 0 ? '+' : it.delta < 0 ? '−' : ''}%${Math.abs(it.delta)}`}
+                    {it.delta === null ? '–' : percent(it.delta / 100, true)}
                   </Txt>
                   <View style={[styles.rowAccent, { backgroundColor: tone.base }]} />
                 </View>
@@ -321,10 +321,10 @@ export function ReportsScreen() {
                 {money(sum?.expense ?? 0, undefined, { trimZeroCents: true })}
               </Txt>
               <Txt weight="bold" size={13} style={styles.cNum}>
-                %100
+                {percent(1)}
               </Txt>
               <Txt weight="bold" size={12.5} style={[styles.cDiff, { color: change === null ? colors.textMuted : change <= 0 ? colors.income : colors.danger }]}>
-                {change === null ? '–' : `${change > 0 ? '+' : change < 0 ? '−' : ''}%${Math.abs(change)}`}
+                {change === null ? '–' : percent(change / 100, true)}
               </Txt>
             </View>
           </View>
@@ -391,7 +391,8 @@ const styles = StyleSheet.create({
   table: { marginTop: 18, borderRadius: 22, overflow: 'hidden' },
   tr: { flexDirection: 'row', alignItems: 'center', minHeight: 50, paddingHorizontal: 12, gap: 6 },
   th: { minHeight: 40 },
-  caps: { letterSpacing: 1.4 },
+  // Narrow number columns: keep header words on one line ("COUNT", "CHANGE").
+  caps: { letterSpacing: 0.4 },
   cName: { flex: 1, minWidth: 0 },
   nameCell: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cNum: { width: 38, textAlign: 'right' },

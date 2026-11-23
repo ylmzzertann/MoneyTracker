@@ -221,14 +221,14 @@ export function ReviewScreen() {
     const cat = catalog?.byId.get(categoryFor(c) ?? '');
     return [c.merchantName || c.description, money(toMinor(c.amount, currencyOf(c)), currencyOf(c)), t(`kind.${kindFor(c)}`), cat?.label].filter(Boolean).join(', ');
   };
-  const face = (c: ImportCandidate, interactive: boolean) => (
+  const face = (c: ImportCandidate) => (
     <CandidateFace
       candidate={c}
       kind={kindFor(c)}
       currency={currencyOf(c)}
       category={catalog?.byId.get(categoryFor(c) ?? '')}
       status={status?.get(c.key) ?? 'new'}
-      onCategory={interactive ? () => setEditing(c.key) : undefined}
+      onCategory={() => setEditing(c.key)}
     />
   );
 
@@ -346,14 +346,17 @@ export function ReviewScreen() {
               <ProgressBar share={(queue.length - pending.length) / queue.length} color={colors.accent} height={4} />
             </View>
             <View style={[styles.deck, styles.pad]}>
+              {/* An empty card edge under the top card says "more to come" without its text showing through. */}
               {next && (
-                <View pointerEvents="none" style={styles.peek} importantForAccessibility="no-hide-descendants">
-                  {face(next, false)}
+                <View pointerEvents="none" style={styles.ghost} importantForAccessibility="no-hide-descendants">
+                  <Card fill padded={false} />
                 </View>
               )}
-              <DeckCard key={top.key} ref={deck} label={cardLabel(top)} onDecide={(d) => decide([top.key], d)} onCategory={() => setEditing(top.key)}>
-                {face(top, true)}
-              </DeckCard>
+              <View style={styles.topSlot}>
+                <DeckCard key={top.key} ref={deck} label={cardLabel(top)} onDecide={(d) => decide([top.key], d)} onCategory={() => setEditing(top.key)}>
+                  {face(top)}
+                </DeckCard>
+              </View>
             </View>
             <View style={[styles.pad, styles.actions]}>
               {bulk.length > 1 && (
@@ -435,7 +438,8 @@ const styles = StyleSheet.create({
   progress: { marginTop: 16, gap: 8 },
   progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   deck: { flex: 1, marginTop: 14, marginBottom: 14 },
-  peek: { position: 'absolute', top: 0, bottom: 0, left: 16, right: 16, opacity: 0.5, transform: [{ translateY: 12 }, { scale: 0.94 }] },
+  topSlot: { flex: 1, marginBottom: 12 },
+  ghost: { position: 'absolute', top: 24, bottom: 0, left: 34, right: 34, opacity: 0.55 },
   actions: { gap: 10 },
   bulk: { alignSelf: 'center' },
   buttons: { flexDirection: 'row', alignItems: 'center', gap: 10 },

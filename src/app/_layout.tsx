@@ -20,16 +20,18 @@ import { LockGate } from '@/features/app/LockGate';
 import { useFxRefresh } from '@/features/app/useFxRefresh';
 import { configureNotifications } from '@/features/plan/notifications';
 import { usePlanRunner } from '@/features/plan/usePlanRunner';
-import { initI18n, resolveLanguage } from '@/i18n';
+import { applyLanguage, initI18n, resolveLanguage } from '@/i18n';
 import { useSettings } from '@/store/settings';
 import { useTheme } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync();
 configureNotifications();
+// Settings are read synchronously from storage, so the first frame already uses the saved language.
+initI18n(resolveLanguage(useSettings.getState().language));
 
 export default function RootLayout() {
-  const language = useSettings((s) => s.language);
-  initI18n(resolveLanguage(language));
+  const language = resolveLanguage(useSettings((s) => s.language));
+  useEffect(() => applyLanguage(language), [language]);
 
   const [fontsLoaded] = useFonts({
     Unbounded_300Light,

@@ -98,7 +98,7 @@ export function GoalsScreen() {
 export function GoalCard({ goal: g, compact }: { goal: Goal; compact?: boolean }) {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
-  const { money, date } = useFormat();
+  const { money, date, percent } = useFormat();
   const p = goalProgress(g.targetMinor, g.savedMinor, g.targetDate);
   const tone = categoryTone(g.color);
   const sub = p.done
@@ -133,7 +133,7 @@ export function GoalCard({ goal: g, compact }: { goal: Goal; compact?: boolean }
           </Txt>
         </View>
         <Txt weight="bold" size={13} style={{ color: p.done ? colors.income : isDark ? tone.light : tone.deep }}>
-          %{Math.min(999, Math.round(p.share * 100))}
+          {percent(Math.min(9.99, p.share))}
         </Txt>
       </Card>
     </Pressable>

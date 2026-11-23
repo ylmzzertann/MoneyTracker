@@ -30,7 +30,7 @@ export function BudgetsScreen() {
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { money } = useFormat();
+  const { money, percent } = useFormat();
   const base = useSettings((s) => s.baseCurrency);
   const weekStart = useSettings((s) => s.weekStart);
   const catalog = useCategories();
@@ -132,7 +132,7 @@ export function BudgetsScreen() {
                     {t('budgets.spentOf', { spent: money(total, base, { trimZeroCents: true }), limit: money(limit, base, { trimZeroCents: true }) })}
                   </Txt>
                   <Txt weight="bold" size={12.5} style={{ color: barColor(pace.share, colors.income) }}>
-                    %{Math.round(pace.share * 100)}
+                    {percent(pace.share)}
                   </Txt>
                 </View>
                 <View style={[styles.note, { backgroundColor: tint(colors.accent, 0.08), boxShadow: `inset 0 0 0 1px ${tint(colors.accent, 0.22)}` }]}>
@@ -194,7 +194,7 @@ export function BudgetsScreen() {
                   </View>
                   {lim ? (
                     <Txt weight="bold" size={12} style={[styles.pct, { color: share >= 0.8 ? color : colors.textSoft }]}>
-                      %{Math.round(share * 100)}
+                      {percent(share)}
                     </Txt>
                   ) : (
                     <Icon name="add_circle" size={20} color={colors.textMuted} style={styles.pct} />

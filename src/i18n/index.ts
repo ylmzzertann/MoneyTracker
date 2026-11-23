@@ -39,11 +39,9 @@ export function categoryKey(key: string): string {
   return `categories.${key.replace(/\./g, '-')}`;
 }
 
+/** Sets up i18next once, before the first render. */
 export function initI18n(language: AppLanguage) {
-  if (i18n.isInitialized) {
-    if (i18n.language !== language) void i18n.changeLanguage(language);
-    return i18n;
-  }
+  if (i18n.isInitialized) return i18n;
   void i18n.use(initReactI18next).init({
     resources: { en: { translation: en }, tr: { translation: tr } },
     lng: language,
@@ -53,6 +51,14 @@ export function initI18n(language: AppLanguage) {
     returnNull: false,
   });
   return i18n;
+}
+
+/**
+ * Switches the UI language. Call it from an effect, never during render:
+ * every mounted `useTranslation` re-renders when the language changes.
+ */
+export function applyLanguage(language: AppLanguage) {
+  if (i18n.language !== language) void i18n.changeLanguage(language);
 }
 
 export default i18n;

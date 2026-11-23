@@ -245,13 +245,30 @@ export function AccentButton({
 }
 
 /** Double-bezel card: a faint outer tray holding the opaque inner panel. */
-export function Card({ children, style, padded = true }: { children: ReactNode; style?: StyleProp<ViewStyle>; padded?: boolean }) {
+export function Card({
+  children,
+  style,
+  padded = true,
+  fill = false,
+}: {
+  children?: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  padded?: boolean;
+  /** Stretch to the parent's height (e.g. a card in a swipe deck). */
+  fill?: boolean;
+}) {
   const { colors, isDark } = useTheme();
   return (
-    <View style={[styles.shell, { backgroundColor: isDark ? 'rgba(255,255,255,0.035)' : 'rgba(11,12,16,0.03)', boxShadow: `inset 0 0 0 1px ${colors.hairline}` }]}>
+    <View
+      style={[
+        styles.shell,
+        fill && styles.flex,
+        { backgroundColor: isDark ? 'rgba(255,255,255,0.035)' : 'rgba(11,12,16,0.03)', boxShadow: `inset 0 0 0 1px ${colors.hairline}` },
+      ]}>
       <View
         style={[
           styles.core,
+          fill && styles.flex,
           padded && styles.corePad,
           {
             backgroundImage: isDark ? 'linear-gradient(180deg, rgba(22,25,38,0.92), rgba(12,14,22,0.92))' : 'linear-gradient(180deg, #FFFFFF, #F7F8F3)',

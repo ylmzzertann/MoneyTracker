@@ -35,7 +35,7 @@ export function HomeScreen() {
   const weekStart = useSettings((s) => s.weekStart);
   const hidden = useSettings((s) => s.hideAmounts);
   const setSettings = useSettings((s) => s.set);
-  const { moneyParts, date } = useFormat();
+  const { moneyParts, date, percent } = useFormat();
   const catalog = useCategories();
   const budgets = useBudgets();
   const budget = budgets?.total ?? null;
@@ -198,7 +198,7 @@ export function HomeScreen() {
                 ]}>
                 <Icon name={change <= 0 ? 'trending_down' : 'trending_up'} size={16} color={change <= 0 ? colors.income : colors.danger} />
                 <Txt weight="bold" size={12} style={{ color: change <= 0 ? colors.income : colors.danger }}>
-                  %{Math.abs(change)}
+                  {percent(Math.abs(change) / 100)}
                 </Txt>
               </View>
             )}

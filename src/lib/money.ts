@@ -79,6 +79,25 @@ export type FormatMoneyOptions = {
   showPlus?: boolean;
 };
 
+/*
+ * Hermes on iOS has no `formatToParts` and ignores `signDisplay` and
+ * `notation: 'compact'`, so signs, compact suffixes and the decimal mark are
+ * worked out here from plain `format()` output, which every platform supports.
+ */
+
+const COMPACT_STEPS: { size: number; en: string; tr: string }[] = [
+  { size: 1e12, en: 'T', tr: ' Tn' },
+  { size: 1e9, en: 'B', tr: ' Mr' },
+  { size: 1e6, en: 'M', tr: ' Mn' },
+  { size: 1e3, en: 'K', tr: ' B' },
+];
+
+/** Puts `suffix` right after the last digit, so "₺1,2" + " B" and "1,2 €" + "K" both read correctly. */
+function insertAfterLastDigit(formatted: string, suffix: string): string {
+  const i = formatted.search(/\d(?!.*\d)/);
+  return i < 0 ? formatted + suffix : formatted.slice(0, i + 1) + suffix + formatted.slice(i + 1);
+}
+
 export function formatMoney(
   minor: number,
   currency: CurrencyCode,
@@ -87,18 +106,40 @@ export function formatMoney(
 ): string {
   const decimals = currencyDecimals(currency);
   const major = fromMinor(minor, currency);
-  const hideCents = opts.compact || (opts.trimZeroCents && Number.isInteger(major));
-  const options: Intl.NumberFormatOptions = {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: hideCents ? 0 : decimals,
-    maximumFractionDigits: opts.compact ? 1 : decimals,
-    signDisplay: opts.showPlus ? 'exceptZero' : 'auto',
-  };
-  if (opts.compact) {
-    options.notation = 'compact';
+  let text: string;
+  const step = opts.compact ? COMPACT_STEPS.find((s) => Math.abs(major) >= s.size) : undefined;
+  if (step) {
+    const scaled = Math.round((major / step.size) * 10) / 10;
+    const body = getFormatter(locale, { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(scaled);
+    text = insertAfterLastDigit(body, locale.toLowerCase().startsWith('tr') ? step.tr : step.en);
+  } else {
+    const hideCents = opts.compact || (opts.trimZeroCents && Number.isInteger(major));
+    text = getFormatter(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: hideCents ? 0 : decimals,
+      maximumFractionDigits: opts.compact ? Math.min(1, decimals) : decimals,
+    }).format(major);
   }
-  return getFormatter(locale, options).format(major);
+  return opts.showPlus && major > 0 ? `+${text}` : text;
+}
+
+/** A share as a whole percent in the locale's style: 0.7 → "70%" (en-US), "%70" (tr-TR). */
+export function formatPercent(share: number, locale: string): string {
+  return getFormatter(locale, { style: 'percent', maximumFractionDigits: 0 }).format(share);
+}
+
+const decimalMarks = new Map<string, string>();
+
+/** The locale's decimal mark ("," for tr-TR, "." for en-US). */
+export function decimalSeparator(locale: string): string {
+  let mark = decimalMarks.get(locale);
+  if (!mark) {
+    const sample = getFormatter(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }).format(1.5);
+    mark = sample.replace(/[\d\s]/g, '').charAt(0) || '.';
+    decimalMarks.set(locale, mark);
+  }
+  return mark;
 }
 
 /** Plain number with grouping, no currency symbol (used by the amount wheels). */
@@ -107,11 +148,6 @@ export function formatNumber(value: number, locale: string, fractionDigits = 0):
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   }).format(value);
-}
-
-export function currencySymbol(currency: CurrencyCode, locale: string): string {
-  const parts = getFormatter(locale, { style: 'currency', currency }).formatToParts(0);
-  return parts.find((p) => p.type === 'currency')?.value ?? currency;
 }
 
 /** Splits a minor amount into its digits for the amount wheels. */

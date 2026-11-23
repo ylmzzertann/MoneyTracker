@@ -1,5 +1,4 @@
-import * as Notifications from 'expo-notifications';
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
 import { useEffect, useEffectEvent } from 'react';
 import { AppState } from 'react-native';
@@ -24,6 +23,7 @@ import { loadCardSummaries } from './cardSummary';
 import { scheduleReminders } from './notifications';
 import { buildReminders } from './reminders';
 import { buildUpcoming } from './upcoming';
+import { useNotificationTaps } from './useNotificationTaps';
 
 /** Moves the phase-1 monthly budget from settings into the budgets table, once. */
 async function migrateLegacyBudget(db: SQLiteDatabase) {
@@ -117,7 +117,6 @@ export function usePlanRunner() {
   const hour = useSettings((s) => s.reminderHour);
   const language = useSettings((s) => s.language);
   const version = useDataVersion((s) => s.version);
-  const lastResponse = Notifications.useLastNotificationResponse();
 
   const daily = useEffectEvent(() => {
     runDaily(db).catch(() => {
@@ -144,10 +143,5 @@ export function usePlanRunner() {
     return () => clearTimeout(timer);
   }, [onboarded, version, notifyBills, hour, language]);
 
-  useEffect(() => {
-    const url = lastResponse?.notification.request.content.data?.url;
-    if (!onboarded || typeof url !== 'string' || lastResponse?.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-    router.push(url as Href);
-    void Notifications.clearLastNotificationResponseAsync();
-  }, [lastResponse, onboarded]);
+  useNotificationTaps(onboarded);
 }

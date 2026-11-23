@@ -160,14 +160,16 @@ export function CandidateFace({
   const { money, date } = useFormat();
   const when = parseLocalISO(candidate.occurredAt);
   const hasTime = !candidate.occurredAt.endsWith('T12:00:00');
-  const title = candidate.merchantName || candidate.description || t('import.noDescription');
+  // Without a merchant the category names the row; the bank's text stays visible underneath.
+  const title = candidate.merchantName || category?.label || t('import.noDescription');
+  const amountText = `${kind === 'income' ? '+' : '−'}${money(toMinor(candidate.amount, currency), currency)}`;
   const warnings = [
     status === 'similar' ? t('import.similar') : null,
     candidate.hint === 'cardPayment' ? t('import.cardPayment') : null,
   ].filter((w): w is string => !!w);
 
   return (
-    <Card style={styles.face}>
+    <Card fill style={styles.face}>
       <View style={styles.row}>
         <Txt tone="muted" weight="semibold" size={12.5}>
           {date(when, { weekday: 'short', day: 'numeric', month: 'long', ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {}) })}
@@ -183,14 +185,19 @@ export function CandidateFace({
       </View>
 
       <View style={styles.middle}>
-        <Txt display="light" size={42} numberOfLines={1} adjustsFontSizeToFit style={{ color: kind === 'income' ? colors.income : colors.text, letterSpacing: -1.5 }}>
-          {`${kind === 'income' ? '+' : '−'}${money(toMinor(candidate.amount, currency), currency)}`}
+        <Txt
+          display="light"
+          size={amountText.length > 13 ? 30 : amountText.length > 10 ? 36 : 42}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          style={{ color: kind === 'income' ? colors.income : colors.text, letterSpacing: -1.5 }}>
+          {amountText}
         </Txt>
         <Txt weight="bold" size={20} numberOfLines={1}>
           {title}
         </Txt>
-        {candidate.merchantName !== '' && candidate.description !== '' && (
-          <Txt tone="faint" size={12} numberOfLines={2}>
+        {candidate.description !== '' && (
+          <Txt tone="faint" size={12} numberOfLines={3}>
             {candidate.description}
           </Txt>
         )}
@@ -229,7 +236,7 @@ export function CandidateFace({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   fill: { flex: 1 },
-  face: { flex: 1, gap: 16, justifyContent: 'space-between' },
+  face: { gap: 16, justifyContent: 'space-between' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   last4: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   middle: { gap: 6 },

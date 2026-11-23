@@ -29,7 +29,7 @@ export function GoalScreen() {
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
-  const { money, date } = useFormat();
+  const { money, date, percent } = useFormat();
   const { id } = useLocalSearchParams<{ id: string }>();
   const goal = useQuery(`goal:${id}`, (d) => getGoal(d, id)).data;
   const contributions = useQuery(`contributions:${id}`, (d) => listContributions(d, id)).data ?? [];
@@ -111,7 +111,7 @@ export function GoalScreen() {
                 {fmt(goal.savedMinor)}
               </Txt>
               <Txt tone="muted" size={12}>
-                %{Math.min(999, Math.round(p.share * 100))}
+                {percent(Math.min(9.99, p.share))}
               </Txt>
             </View>
           </ProgressRing>

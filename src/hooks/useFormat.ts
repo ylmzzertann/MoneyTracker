@@ -1,19 +1,9 @@
 import { formattingLocale, resolveLanguage } from '@/i18n';
 import { dateFormatter } from '@/lib/dates';
-import { formatMoney, type FormatMoneyOptions } from '@/lib/money';
+import { decimalSeparator, formatMoney, formatPercent, type FormatMoneyOptions } from '@/lib/money';
 import { useSettings } from '@/store/settings';
 
 const HIDDEN = '••••';
-
-const decimalSeparators = new Map<string, string>();
-function decimalSeparator(locale: string): string {
-  let sep = decimalSeparators.get(locale);
-  if (!sep) {
-    sep = new Intl.NumberFormat(locale).formatToParts(1.5).find((p) => p.type === 'decimal')?.value ?? '.';
-    decimalSeparators.set(locale, sep);
-  }
-  return sep;
-}
 
 /** Formatting helpers bound to the user's language, region, main currency and privacy setting. */
 export function useFormat() {
@@ -41,5 +31,12 @@ export function useFormat() {
 
   const date = (d: Date, options: Intl.DateTimeFormatOptions) => dateFormatter(locale, options).format(d);
 
-  return { locale, language, baseCurrency, hidden, money, moneyParts, date };
+  /** 0.7 → "70%" / "%70"; `signed` adds + or − for changes. */
+  const percent = (share: number, signed = false) => {
+    const text = formatPercent(Math.abs(share), locale);
+    if (!signed || Math.round(share * 100) === 0) return text;
+    return `${share > 0 ? '+' : '−'}${text}`;
+  };
+
+  return { locale, language, baseCurrency, hidden, money, moneyParts, date, percent };
 }

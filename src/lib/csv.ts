@@ -3,11 +3,12 @@
  * Turkish Excel expects ";" as the separator and "," as the decimal mark.
  */
 
+import { decimalSeparator } from './money';
+
 export type CsvOptions = { separator: ',' | ';' };
 
 export function csvOptionsForLocale(locale: string): CsvOptions {
-  const decimal = new Intl.NumberFormat(locale).formatToParts(1.5).find((p) => p.type === 'decimal')?.value;
-  return { separator: decimal === ',' ? ';' : ',' };
+  return { separator: decimalSeparator(locale) === ',' ? ';' : ',' };
 }
 
 function escapeCell(value: string, sep: string): string {

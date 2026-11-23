@@ -3,6 +3,7 @@ import Svg, { Circle, G } from 'react-native-svg';
 
 import { Icon } from '@/components/Icon';
 import { Txt } from '@/components/ui';
+import { useFormat } from '@/hooks/useFormat';
 import { categoryTone, useTheme } from '@/theme';
 import type { IconName } from '@/theme/icons';
 
@@ -28,6 +29,7 @@ export function RingsChart({
   accessibilityLabel: string;
 }) {
   const { colors, isDark } = useTheme();
+  const { percent } = useFormat();
   const height = 300;
   const cx = width / 2;
   const cy = height / 2;
@@ -103,7 +105,7 @@ export function RingsChart({
             {amountText}
           </Txt>
           <Txt weight="bold" size={11} style={{ color: isDark ? selTone.light : selTone.deep }}>
-            %{Math.round(sel.share * 100)}
+            {percent(sel.share)}
           </Txt>
         </View>
       )}

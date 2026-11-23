@@ -45,7 +45,7 @@ export function OrbitView({
 }) {
   const { t } = useTranslation();
   const { colors, isDark } = useTheme();
-  const { money } = useFormat();
+  const { money, percent } = useFormat();
   const scale = Math.min(1, width / 390);
   const cx = width / 2;
   const cy = HEIGHT / 2;
@@ -184,7 +184,7 @@ export function OrbitView({
               {(over || near) && (
                 <View style={styles.badge}>
                   <Badge
-                    label={`%${Math.round((p.budgetUse ?? 0) * 100)}`}
+                    label={percent(p.budgetUse ?? 0)}
                     background={over ? colors.danger : colors.warning}
                     color={over ? colors.onDanger : colors.onWarning}
                   />
